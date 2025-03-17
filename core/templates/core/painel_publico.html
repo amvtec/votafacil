@@ -1,0 +1,282 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Público - VotaFácil</title>
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #121212;
+        color: white;
+        margin: 0;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: auto;
+        padding: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    /* 🔹 Containers com altura mínima para não se distorcerem */
+    .sessao-info, .pauta-info, .vereadores-container, .votacao-info {
+        background: #1e1e1e;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: left;
+        color: #ffffff;
+        width: 100%;
+        min-height: 150px; /* 🔹 Garante que os blocos não se comprimam */
+    }
+
+    .pauta-info h2, .sessao-info h2 {
+        color: #ffc107;
+        text-align: center;
+    }
+
+    /* 🔹 Container para manter os vereadores fixos */
+    .vereadores-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        justify-content: center;
+        min-height: 250px; /* 🔹 Mantém a estrutura mesmo sem vereadores */
+    }
+
+    .vereador-card {
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 13px;
+        font-weight: bold;
+        transition: 0.3s;
+        border: 3px solid transparent;
+        background: #252525;
+        color: white;
+        position: relative;
+        height: 180px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .presente {
+        background: #012e0b;
+    }
+
+    .ausente {
+        background: #86111d;
+    }
+
+    .vereador-card img {
+        width: 55px;
+        height: 55px;
+        border-radius: 50%;
+        border: 2px solid white;
+        margin-bottom: 5px;
+    }
+
+    .voto-box {
+        width: 100%;
+        padding: 5px;
+        border-radius: 3px;
+        font-size: 15px;
+        font-weight: bold;
+        text-align: center;
+        min-height: 25px;
+    }
+
+    /* 🔹 Resultados fixos */
+    .resultados-info {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        flex-wrap: wrap;
+        min-height: 80px; /* 🔹 Mantém estrutura mesmo sem votos */
+    }
+
+    .info-box {
+        width: 160px;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        color: rgb(0, 0, 0);
+        text-align: center;
+    }
+
+    .presentes {
+        background: #28a745;
+    }
+
+    .ausentes {
+        background: #dc3545;
+    }
+
+    .votos-sim {
+        background: #0d5e20;
+    }
+
+    .votos-nao {
+        background: #dc3545;
+    }
+
+    .votos-abstencao {
+        background: #ffc107;
+        color: black;
+    }
+
+    /* 🔹 Responsividade */
+    @media (max-width: 992px) {
+        .container {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .vereadores-container {
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        }
+    }
+</style>
+
+</head>
+<body>
+    
+    <div class="container">
+        <div class="logo">
+        
+            <h1 class="titulo-camara">Câmara Municipal de Wanderlândia</h1>
+
+            <div class="relogio-container">
+                <span id="data-atual"></span> - <span id="hora-atual"></span>
+            </div>
+        </div>
+        <!-- 🔹 Sessão e Vereadores lado a lado -->
+        <div class="conteudo">
+            <!-- 🔹 Info Sessão e Pauta -->
+            <div class="info-container">
+                <div class="sessao-info">
+                    <h2 id="sessao-nome">Carregando...</h2>
+                    <p id="sessao-descricao"></p>
+                </div>
+
+                <div class="pauta-info">
+                    <h2>Pauta em Votação</h2>
+                    <p id="pauta-titulo">Carregando...</p>
+                    <p id="pauta-descricao"></p>
+                    <h3 id="status-pauta" style="text-align: center; color: rgb(255, 166, 0);">🟡 Aguardando votação...</h3>
+                </div>
+            </div>
+
+            <!-- 🔹 Vereadores -->
+            <div class="vereadores-container" id="vereadores-lista"></div>
+        </div>
+
+        <div class="votacao-info">
+            <h3>Resultados Parciais</h3>
+
+            <div class="resultados-info">
+                <div class="info-box votos-sim">👍 Sim: <span id="votos-sim">0</span></div>
+                <div class="info-box votos-nao">👎 Não: <span id="votos-nao">0</span></div>
+                <div class="info-box votos-abstencao">✋ Abstenção: <span id="votos-abstencao">0</span></div>
+            </div>
+
+            <div class="presenca-info">
+                <div class="info-box presentes">🟢 Presentes: <span id="presentes-count">0</span></div>
+                <div class="info-box ausentes">🔴 Ausentes: <span id="ausentes-count">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function atualizarPainel() {
+            fetch('/api/painel-publico/')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('sessao-nome').innerText = data.sessao.nome;
+                    document.getElementById('sessao-descricao').innerText = data.sessao.descricao;
+    
+                    document.getElementById('pauta-titulo').innerText = data.pauta.titulo;
+                    document.getElementById('pauta-descricao').innerText = data.pauta.descricao;
+    
+                    document.getElementById('status-pauta').innerText = data.pauta.status;
+    
+                    let vereadoresHtml = '';
+                    let presentesCount = 0, ausentesCount = 0;
+    
+                    data.vereadores.forEach(vereador => {
+                        let votoClass = "voto-box";
+                        let votoTexto = "";
+    
+                        if (data.pauta.votacao_aberta) {
+                            if (vereador.voto === "Sim") {
+                                votoClass += " voto-sim-box";
+                                votoTexto = "👍 Sim";
+                            } else if (vereador.voto === "Não") {
+                                votoClass += " voto-nao-box";
+                                votoTexto = "👎 Não";
+                            } else if (vereador.voto === "Abstenção") {
+                                votoClass += " voto-abstencao-box";
+                                votoTexto = "✋ Abstenção";
+                            }
+                        } else {
+                            votoTexto = "🔒 Voto Secreto";
+                        }
+    
+                        if (vereador.presente) presentesCount++;
+                        else ausentesCount++;
+    
+                        vereadoresHtml += `
+                            <div class="vereador-card ${vereador.presente ? 'presente' : 'ausente'}">
+                                <img src="${vereador.foto}" alt="Foto de ${vereador.nome}">
+                                <p>${vereador.nome}</p>
+                                <p>${vereador.presente ? '✅ Presente' : '❌ Ausente'}</p>
+                                <div class="${votoClass}">${votoTexto}</div>
+                            </div>
+                        `;
+                    });
+    
+                    document.getElementById('vereadores-lista').innerHTML = vereadoresHtml;
+                    document.getElementById('presentes-count').innerText = presentesCount;
+                    document.getElementById('ausentes-count').innerText = ausentesCount;
+                    document.getElementById('votos-sim').innerText = data.votos_sim;
+                    document.getElementById('votos-nao').innerText = data.votos_nao;
+                    document.getElementById('votos-abstencao').innerText = data.votos_abstencao;
+                })
+                .catch(error => console.error('Erro ao atualizar painel:', error));
+        }
+    
+        setInterval(atualizarPainel, 5000);
+        atualizarPainel();
+    </script>
+    
+
+<script>
+    function atualizarRelogio() {
+        const agora = new Date();
+    
+        // Formatar a data (DD/MM/AAAA)
+        const opcoesData = { day: '2-digit', month: '2-digit', year: 'numeric' };
+        const dataFormatada = agora.toLocaleDateString('pt-BR', opcoesData);
+    
+        // Formatar a hora (HH:MM:SS)
+        const horaFormatada = agora.toLocaleTimeString('pt-BR');
+    
+        // Atualizar os elementos na tela
+        document.getElementById('data-atual').innerText = dataFormatada;
+        document.getElementById('hora-atual').innerText = horaFormatada;
+    }
+    
+    // Atualiza o relógio a cada segundo
+    setInterval(atualizarRelogio, 1000);
+    atualizarRelogio(); // Chama a função ao carregar a página
+    </script>    
+</body>
+</html>

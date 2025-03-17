@@ -1,0 +1,116 @@
+{% block content %}
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #f4f4f4;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+    }
+
+    .container {
+        width: 90%;
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+        color: #343a40;
+    }
+
+    .pauta-card {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+        text-align: left;
+        position: relative;
+    }
+
+    /* 🔹 Estilo do rótulo de status no canto superior da pauta */
+    .status {
+        font-weight: bold;
+        padding: 6px 12px;
+        border-radius: 6px;
+        display: inline-block;
+        position: absolute;
+        top: -10px;
+        left: 15px;
+        font-size: 14px;
+        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 🔹 Cores para cada status */
+    .status-aprovada { background-color: #28a745; color: white; }   /* Verde */
+    .status-rejeitada { background-color: #dc3545; color: white; }  /* Vermelho */
+    .status-em-votacao { background-color: #007bff; color: white; } /* Azul */
+    .status-em-espera { background-color: #ffc107; color: black; }  /* Amarelo */
+    .status-encerrada { background-color: #6c757d; color: white; }  /* Cinza */
+
+    .button {
+        display: inline-block;
+        padding: 12px 20px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 10px;
+    }
+
+    .button.back {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .button.pdf {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .no-pautas {
+        color: red;
+        font-weight: bold;
+    }
+</style>
+
+<div class="container">
+    <h2>📋 Pautas do Dia</h2>
+
+    {% if pautas %}
+        {% for pauta in pautas %}
+        <div class="pauta-card">
+            <!-- 🔹 Rótulo do Status no topo da pauta -->
+            {% if pauta.status == "Aprovada" %}
+                <span class="status status-aprovada">✅ Aprovada</span>
+            {% elif pauta.status == "Rejeitada" %}
+                <span class="status status-rejeitada">❌ Rejeitada</span>
+            {% elif pauta.status == "Em Votação" %}
+                <span class="status status-em-votacao">🟢 Em Votação</span>
+            {% elif pauta.status == "Em Espera" %}
+                <span class="status status-em-espera">⏳ Em Espera</span>
+            {% elif pauta.status == "Encerrada" %}
+                <span class="status status-encerrada">🔒 Encerrada</span>
+            {% endif %}
+
+            <h3>📌 {{ pauta.titulo }}</h3>
+            <p><strong>Descrição:</strong> {{ pauta.descricao }}</p>
+
+            {% if pauta.arquivo_pdf %}
+                <a href="{{ pauta.arquivo_pdf.url }}" target="_blank" class="button pdf">📄 Visualizar PDF</a>
+            {% else %}
+                <p>📄 PDF não disponível</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="no-pautas">🚫 Nenhuma pauta disponível no momento.</p>
+    {% endif %}
+
+    <a href="{% url 'painel_vereador' %}" class="button back">🔙 Voltar</a>
+</div>
+{% endblock %}
