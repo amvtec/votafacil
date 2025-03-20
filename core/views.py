@@ -22,6 +22,8 @@ from reportlab.lib.styles import ParagraphStyle
 from django.http import JsonResponse
 from reportlab.platypus import Spacer
 from .models import PresencaRegistrada
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 
@@ -156,22 +158,22 @@ def encerrar_votacao(request):
         messages.error(request, "⚠️ Você precisa estar logado para realizar esta ação.")
         return redirect("login")
 
-    # Verifica se o usuário logado é o presidente
+    # 🔹 Verifica se o usuário logado é o presidente
     presidente = get_object_or_404(Vereador, id=vereador_id, funcao="Presidente")
 
-    # Verifica se há uma sessão ativa
+    # 🔹 Verifica se há uma sessão ativa
     sessao = Sessao.objects.filter(status="Em Andamento").first()
     if not sessao:
         messages.warning(request, "⚠️ Nenhuma sessão está ativa no momento.")
         return redirect("painel_presidente")
 
-    # Verifica se há pautas em votação
+    # 🔹 Verifica se há pautas em votação
     pautas_em_votacao = Pauta.objects.filter(sessao=sessao, status="Em Votação")
     if not pautas_em_votacao.exists():
         messages.info(request, "ℹ️ Nenhuma pauta está em votação para ser encerrada.")
         return redirect("painel_presidente")
 
-    # Atualiza cada pauta com base nos votos
+    # 🔹 Atualiza cada pauta com base nos votos
     for pauta in pautas_em_votacao:
         votos = Votacao.objects.filter(pauta=pauta).values("voto").annotate(total=Count("voto"))
         
@@ -180,9 +182,15 @@ def encerrar_votacao(request):
         votos_abstencao = next((item["total"] for item in votos if item["voto"] == "Abstenção"), 0)
 
         total_votantes = votos_sim + votos_nao + votos_abstencao
-        maioria = (total_votantes // 2) + 1  # Maioria simples
+        vereadores_presentes = Votacao.objects.filter(pauta=None, presenca=True).count()
 
-        # Determina se a pauta foi aprovada ou rejeitada
+        # 🔹 Define o critério de aprovação com base no tipo da votação
+        if pauta.tipo_votacao == "Comum":
+            maioria = (vereadores_presentes // 2) + 1  # Maioria simples
+        else:
+            maioria = (2 * vereadores_presentes) // 3  # Maioria qualificada (2/3)
+
+        # 🔹 Determina o resultado da votação
         if votos_sim >= maioria:
             pauta.status = "Aprovada"
         elif votos_nao >= maioria:
@@ -264,20 +272,30 @@ def encerrar_sessao(request, sessao_id):
     sessao = get_object_or_404(Sessao, id=sessao_id)
 
     if sessao.status == "Em Andamento":
-        # 🔹 **1️⃣ Salvar as presenças antes de encerrar a sessão**
+        # 🔹 1️⃣ Salvar as presenças antes de encerrar a sessão
         vereadores_presentes = Votacao.objects.filter(pauta=None, presenca=True).values_list("vereador", flat=True)
-
         for vereador_id in vereadores_presentes:
             PresencaRegistrada.objects.create(sessao=sessao, vereador_id=vereador_id)
 
-        # 🔹 **2️⃣ Arquivar a sessão**
+        # 🔹 2️⃣ Arquivar a sessão
         sessao.status = "Arquivada"
         sessao.save()
 
-        # 🔹 **3️⃣ Zerar as presenças para uma futura sessão**
+        # 🔹 3️⃣ Zerar as presenças para uma futura sessão
         Votacao.objects.filter(pauta=None).delete()  # Remove os registros de presença
 
         messages.success(request, f"📌 Sessão {sessao.nome} foi arquivada! Presenças salvas.")
+
+        # 🔹 4️⃣ (Opcional) Notificar o painel público via WebSockets:
+        #     Se você configurou Django Channels e um Consumer "PainelPublicoConsumer"
+        #     e todos os navegadores estiverem em um group chamado 'painelPublicoGroup',
+        #     então envie esse "sessao_encerrada" para derrubar o painel em tempo real.
+        channel_layer = get_channel_layer()
+        if channel_layer is not None:
+            async_to_sync(channel_layer.group_send)(
+                'painelPublicoGroup',
+                {'type': 'sessao_encerrada'}
+            )
 
     return redirect("painel_presidente")
 
@@ -384,6 +402,17 @@ def gerar_relatorio(request, sessao_id):
         elements.append(Paragraph(f"<b>Tipo:</b> {pauta.tipo}", left_aligned_style))
         elements.append(Paragraph(f"<b>Autor:</b> {pauta.autor.nome}", left_aligned_style))
         elements.append(Paragraph(f"<b>Status:</b> {pauta.status}", left_aligned_style))
+
+        # 🔹 Adicionar o Tipo de Votação (Simples, Absoluta, Qualificada)
+        tipo_votacao_texto = "Não Definido"
+        if pauta.tipo_votacao == "simples":
+            tipo_votacao_texto = "Maioria Simples"
+        elif pauta.tipo_votacao == "absoluta":
+            tipo_votacao_texto = "Maioria Absoluta"
+        elif pauta.tipo_votacao == "qualificada":
+            tipo_votacao_texto = "Maioria Qualificada (2/3)"
+        
+        elements.append(Paragraph(f"<b>Tipo de Votação:</b> {tipo_votacao_texto}", left_aligned_style))
         elements.append(Paragraph(f"<b>Votação:</b> {'Aberta' if pauta.votacao_aberta else 'Secreta'}", left_aligned_style))
         elements.append(Spacer(1, 10))
 
@@ -429,6 +458,7 @@ def gerar_relatorio(request, sessao_id):
     # Gera o PDF
     doc.build(elements)
     return response
+
 
 
 
@@ -501,9 +531,16 @@ def pautas_presidente(request):
         return redirect("login")
 
     presidente = get_object_or_404(Vereador, id=vereador_id, funcao="Presidente")
-    pautas = Pauta.objects.all()
-    
-    return render(request, 'core/pautas_presidente.html', {'presidente': presidente, 'pautas': pautas})
+
+    # Filtra apenas as pautas de sessões ativas (em andamento)
+    sessao_ativa = Sessao.objects.filter(status="Em Andamento").first()
+
+    if sessao_ativa:
+        pautas = Pauta.objects.filter(sessao=sessao_ativa)
+    else:
+        pautas = []  # Nenhuma pauta deve aparecer se a sessão estiver encerrada
+
+    return render(request, 'core/pautas_presidente.html', {'presidente': presidente, 'pautas': pautas, 'sessao_ativa': sessao_ativa})
 
 
 from django.http import JsonResponse
@@ -537,13 +574,16 @@ def listar_vereadores(pauta=None):
 
     return vereadores_data
 
+from django.http import JsonResponse
+from .models import Sessao, Pauta, Vereador, Votacao
+
 def api_painel_publico(request):
     sessao = Sessao.objects.filter(status="Em Andamento").first()
 
     if not sessao:
         return JsonResponse({
-            "sessao": {"nome": "Nenhuma sessão ativa", "descricao": ""},
-            "pauta": {"titulo": "Nenhuma pauta em votação", "descricao": "", "status": "Aguardando"},
+            "sessao": {"nome": "Nenhuma sessão ativa", "descricao": "", "status": "Arquivada"},
+            "pauta": {"titulo": "Nenhuma pauta em votação", "descricao": "", "status": "Aguardando", "tipo_votacao": ""},
             "vereadores": listar_vereadores(),
             "votos_sim": 0, "votos_nao": 0, "votos_abstencao": 0
         })
@@ -551,26 +591,27 @@ def api_painel_publico(request):
     pauta = Pauta.objects.filter(sessao=sessao, status="Em Votação").first()
     vereadores_data = listar_vereadores(pauta)
 
-    # **Contagem de votos**
     if pauta:
         votos_sim = Votacao.objects.filter(pauta=pauta, voto="Sim").count()
         votos_nao = Votacao.objects.filter(pauta=pauta, voto="Não").count()
         votos_abstencao = Votacao.objects.filter(pauta=pauta, voto="Abstenção").count()
+        tipo_votacao = pauta.tipo_votacao  # Define o tipo de votação
     else:
         votos_sim = votos_nao = votos_abstencao = 0
+        tipo_votacao = ""
 
-    # **Verifica se votação é aberta ou fechada**
     if pauta and not pauta.votacao_aberta:
         for vereador in vereadores_data:
             vereador["voto"] = "🔒 Voto Secreto"
 
-    # **Verificar vereadores presentes (exceto presidente)**
     vereadores_presentes = Vereador.objects.filter(votacao__pauta=None, votacao__presenca=True).exclude(funcao="Presidente").count()
 
-    # **Maioria necessária**
-    maioria = (vereadores_presentes // 2) + 1 if vereadores_presentes > 1 else 1
+    # **Definição da maioria conforme o tipo de votação**
+    if pauta and pauta.tipo_votacao == "Qualificada":
+        maioria = (2 * vereadores_presentes) // 3  # Maioria de 2/3
+    else:
+        maioria = (vereadores_presentes // 2) + 1 if vereadores_presentes > 1 else 1  # Maioria simples
 
-    # **Verifica se todos os vereadores presentes (exceto presidente) já votaram**
     total_votantes = votos_sim + votos_nao + votos_abstencao
     todos_votaram = total_votantes >= vereadores_presentes
 
@@ -605,19 +646,23 @@ def api_painel_publico(request):
     descricao_sessao = getattr(sessao, "descricao", "Sem descrição disponível")
 
     return JsonResponse({
-        "sessao": {"nome": sessao.nome, "descricao": descricao_sessao},
+        "sessao": {
+            "nome": sessao.nome,
+            "descricao": descricao_sessao,
+            "status": sessao.status  # Agora incluímos o status da sessão
+        },
         "pauta": {
             "titulo": pauta.titulo if pauta else "Nenhuma pauta em votação",
             "descricao": pauta.descricao if pauta else "",
             "status": status_pauta,
-            "votacao_aberta": pauta.votacao_aberta if pauta else True
+            "votacao_aberta": pauta.votacao_aberta if pauta else True,
+            "tipo_votacao": tipo_votacao  # Retorna se é comum ou qualificada
         },
         "vereadores": vereadores_data,
         "votos_sim": votos_sim,
         "votos_nao": votos_nao,
         "votos_abstencao": votos_abstencao
     })
-
 
 
 # 🔹 **Função para listar vereadores SEMPRE**
@@ -650,44 +695,89 @@ def listar_vereadores(pauta=None):
 
 
 def painel_publico(request):
-    # Buscar a sessão ativa
-    sessao = Sessao.objects.filter(status="Em Andamento").first()
-    
-    # Se não houver sessão ativa, definir valores padrão
-    if not sessao:
-        return render(request, "core/painel_publico.html", {
-            "sessao": None, 
-            "pauta": None, 
-            "vereadores": [], 
-            "votos_sim": 0, 
-            "votos_nao": 0, 
-            "votos_abstencao": 0
-        })
+    """
+    Exibe o painel público com a votação em tempo real, garantindo que os tipos de votação
+    e a visibilidade dos votos sejam corretamente refletidos.
+    """
 
-    # Buscar a pauta que está em votação
+    # Buscar a sessão ativa (Em Andamento)
+    sessao = Sessao.objects.filter(status="Em Andamento").first()
+
+    # Se não houver sessão ativa, renderizar com valores padrão
+    if not sessao:
+        return render(
+            request,
+            "core/painel_publico.html",
+            {
+                "sessao": None,
+                "pauta": None,
+                "vereadores": [],
+                "votos_sim": 0,
+                "votos_nao": 0,
+                "votos_abstencao": 0,
+                "sessao_aberta": False,
+                "tipo_votacao": None,
+                "votacao_aberta": None,
+            }
+        )
+
+    # Buscar a pauta que está em votação na sessão ativa
     pauta = Pauta.objects.filter(sessao=sessao, status="Em Votação").first()
 
-    # Buscar os vereadores e verificar presença
+    # Buscar todos os vereadores e verificar presença
     vereadores = Vereador.objects.all()
     for vereador in vereadores:
         vereador.presente = Votacao.objects.filter(vereador=vereador, pauta=None, presenca=True).exists()
 
-    # Buscar os votos para a pauta em votação
+    # Se não houver pauta em votação, definir valores padrão para evitar erro
+    if not pauta:
+        return render(
+            request,
+            "core/painel_publico.html",
+            {
+                "sessao": sessao,
+                "pauta": None,
+                "vereadores": vereadores,
+                "votos_sim": 0,
+                "votos_nao": 0,
+                "votos_abstencao": 0,
+                "sessao_aberta": True,
+                "tipo_votacao": None,
+                "votacao_aberta": None,
+            }
+        )
+
+    # Buscar os votos da pauta em votação
     votos_sim = Votacao.objects.filter(pauta=pauta, voto="Sim").count()
     votos_nao = Votacao.objects.filter(pauta=pauta, voto="Não").count()
     votos_abstencao = Votacao.objects.filter(pauta=pauta, voto="Abstenção").count()
+
+    # Tipo de votação (Simples, Absoluta, Qualificada)
+    tipo_votacao = pauta.tipo_votacao
+
+    # Verifica se a votação é aberta ou fechada
+    votacao_aberta = pauta.votacao_aberta
+
+    # Garante que os votos só são exibidos se a votação for aberta
+    votos_sim_exibido = votos_sim if votacao_aberta else "Oculto"
+    votos_nao_exibido = votos_nao if votacao_aberta else "Oculto"
+    votos_abstencao_exibido = votos_abstencao if votacao_aberta else "Oculto"
 
     # Enviar os dados para o template
     context = {
         "sessao": sessao,
         "pauta": pauta,
         "vereadores": vereadores,
-        "votos_sim": votos_sim,
-        "votos_nao": votos_nao,
-        "votos_abstencao": votos_abstencao
+        "votos_sim": votos_sim_exibido,
+        "votos_nao": votos_nao_exibido,
+        "votos_abstencao": votos_abstencao_exibido,
+        "sessao_aberta": True,
+        "tipo_votacao": tipo_votacao,
+        "votacao_aberta": votacao_aberta,
     }
-    
+
     return render(request, "core/painel_publico.html", context)
+
 
 def api_vereadores_presencas(request):
     # Buscar a sessão ativa
@@ -847,6 +937,60 @@ def gerar_relatorio_presencas(request, sessao_id):
     doc.build(elements)
     return response
 
+def pautas_do_dia(request):
+    vereador_id = request.session.get("vereador_id")
+    if not vereador_id:
+        return redirect("login")
+
+    sessoes = Sessao.objects.filter(status="Em Andamento")
+    pautas = Pauta.objects.filter(sessao__in=sessoes)
+
+    # Adiciona contagem de votos para cada pauta
+    for pauta in pautas:
+        pauta.votos_sim = Votacao.objects.filter(pauta=pauta, voto="Sim").count()
+        pauta.votos_nao = Votacao.objects.filter(pauta=pauta, voto="Não").count()
+        pauta.votos_abstencao = Votacao.objects.filter(pauta=pauta, voto="Abstenção").count()
+
+    return render(request, 'core/pautas_do_dia.html', {'pautas': pautas})
+
+def api_pautas_do_dia(request):
+    sessoes = Sessao.objects.filter(status="Em Andamento")
+    pautas = Pauta.objects.filter(sessao__in=sessoes)
+
+    pautas_data = []
+    for pauta in pautas:
+        pautas_data.append({
+            "id": pauta.id,
+            "votos_sim": Votacao.objects.filter(pauta=pauta, voto="Sim").count(),
+            "votos_nao": Votacao.objects.filter(pauta=pauta, voto="Não").count(),
+            "votos_abstencao": Votacao.objects.filter(pauta=pauta, voto="Abstenção").count(),
+        })
+
+    return JsonResponse({"pautas": pautas_data})
+
+
+def iniciar_votacao(request, pauta_id, tipo_votacao, modalidade):
+    """
+    Inicia a votação para uma pauta, aplicando o tipo de votação definido pelo presidente.
+    """
+    pauta = get_object_or_404(Pauta, id=pauta_id)
+
+    # ✅ Define se a votação será aberta ou fechada
+    pauta.votacao_aberta = True if tipo_votacao == "aberta" else False
+    pauta.tipo_votacao = modalidade  # ✅ Define se a votação será simples, absoluta ou qualificada
+    pauta.status = "Em Votação"
+    pauta.save()
+
+    messages.success(request, f"🗳️ Votação {modalidade.upper()} foi iniciada como {tipo_votacao.upper()}!")
+    return redirect("painel_presidente")
+
+def listar_relatorios(request):
+    """
+    Lista todas as sessões ARQUIVADAS para consulta pública de relatórios.
+    """
+    sessoes_arquivadas = Sessao.objects.filter(status="Arquivada").order_by('-data')
+
+    return render(request, "core/listar_relatorios.html", {"sessoes": sessoes_arquivadas})
 
 
 

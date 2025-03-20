@@ -8,24 +8,13 @@
         body {
             font-family: 'Arial', sans-serif;
             background-color: #f4f6f9;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh; /* 🔹 Centraliza verticalmente */
             text-align: center;
-        }
-
-        .btn-presenca {
-            background: #ff9800;  /* 🔹 Define a cor do botão (laranja) */
-            color: white;         /* 🔹 Define a cor do texto */
-            padding: 12px 18px;   /* 🔹 Ajusta o espaçamento interno */
-            border-radius: 6px;   /* 🔹 Deixa os cantos arredondados */
-            font-size: 16px;      /* 🔹 Tamanho do texto */
-            font-weight: bold;    /* 🔹 Deixa o texto em negrito */
-            text-decoration: none; /* 🔹 Remove sublinhado */
-            display: inline-block; /* 🔹 Mantém o alinhamento correto */
-            transition: 0.3s ease-in-out;
-        }
-
-        .btn-presenca:hover {
-            background: #e68900; /* 🔹 Cor do botão ao passar o mouse */
         }
 
         .container {
@@ -35,6 +24,22 @@
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-presenca {
+            background: #ff9800;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: 0.3s ease-in-out;
+        }
+
+        .btn-presenca:hover {
+            background: #e68900;
         }
 
         .btn {

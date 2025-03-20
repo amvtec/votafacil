@@ -26,7 +26,10 @@ SECRET_KEY = 'django-insecure-#m&o)_kwc#n!x4oxw-9i(i0n17ps7t*trq3h16*d%+-ke+de(k
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
+
+ASGI_APPLICATION = 'seu_projeto.asgi.application'
+
 
 
 # Application definition
@@ -39,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -135,6 +139,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Diretório onde os arquivos de m
 # Configuração para arquivos estáticos (CSS, JS, etc.)
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]  # Diretório onde os arquivos estáticos serão armazenados
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 ALLOWED_HOSTS = ['*']
 
@@ -143,7 +148,6 @@ ALLOWED_HOSTS = ['*']
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

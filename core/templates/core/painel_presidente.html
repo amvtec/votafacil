@@ -30,12 +30,51 @@
             color: #003972;
         }
 
+        /* Botões no topo */
+        .top-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px 20px;
+            position: absolute;
+            top: 10px;
+            left: 0;
+            box-sizing: border-box;
+        }
+
+        .logout, .btn-presenca-top {
+            color: white;
+            padding: 10px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 14px;
+            transition: 0.3s ease-in-out;
+        }
+
+        .logout {
+            background: #dc3545;
+        }
+        .logout:hover {
+            background: #b02a37;
+        }
+
+        .btn-presenca-top {
+            background: #ff9800;
+        }
+        .btn-presenca-top:hover {
+            background: #e68900;
+        }
+
+        /* Ajuste da foto */
         .profile {
             display: flex;
             align-items: center;
             justify-content: center;
             flex-direction: column;
             text-align: center;
+            margin-top: 50px;
             margin-bottom: 20px;
         }
 
@@ -74,6 +113,26 @@
         .btn-dark { background: #6c757d; }
         .btn-dark:hover { background: #5a6268; }
 
+        /* Botão presença reposicionado acima de "Sessões Encerradas" */
+        .btn-presenca {
+            background: #ff9800;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            display: block;
+            transition: 0.3s ease-in-out;
+            width: 90%;
+            max-width: 250px;
+            margin: 15px auto;
+        }
+
+        .btn-presenca:hover {
+            background: #e68900;
+        }
+
         ul {
             list-style: none;
             padding: 0;
@@ -88,48 +147,26 @@
             font-size: 16px;
         }
 
-        .logout {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #dc3545;
-            color: white;
-            padding: 10px 14px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .btn-presenca {
-            background: #ff9800;  /* 🔹 Define a cor do botão (laranja) */
-            color: white;         /* 🔹 Define a cor do texto */
-            padding: 12px 18px;   /* 🔹 Ajusta o espaçamento interno */
-            border-radius: 6px;   /* 🔹 Deixa os cantos arredondados */
-            font-size: 16px;      /* 🔹 Tamanho do texto */
-            font-weight: bold;    /* 🔹 Deixa o texto em negrito */
-            text-decoration: none; /* 🔹 Remove sublinhado */
-            display: inline-block; /* 🔹 Mantém o alinhamento correto */
-            transition: 0.3s ease-in-out;
-        }
-
-        .btn-presenca:hover {
-            background: #e68900; /* 🔹 Cor do botão ao passar o mouse */
-        }
-
-
-        .logout:hover {
-            background: #b02a37;
-        }
-
+        /* Responsividade */
         @media (max-width: 600px) {
-            .container {
-                padding: 18px;
+            .top-buttons {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                position: relative;
+                padding: 0;
+                text-align: center;
             }
 
-            .btn {
-                font-size: 14px;
-                padding: 10px;
+            .logout, .btn-presenca-top {
+                width: 100%;
+                text-align: center;
+                font-size: 12px;
+                padding: 8px 10px;
+            }
+
+            .profile {
+                margin-top: 70px;
             }
         }
     </style>
@@ -137,8 +174,12 @@
 <body>
 
     <div class="container">
-        <a href="{% url 'logout' %}" class="logout">🚪 Sair</a>
+        <!-- Botões no topo -->
+        <div class="top-buttons">
+            <a href="{% url 'logout' %}" class="logout">🚪 Sair</a>
+        </div>
 
+        <!-- Foto e informações -->
         <div class="profile">
             {% if presidente.foto %}
                 <img src="{{ presidente.foto.url }}" alt="Foto de {{ presidente.nome }}">
@@ -155,6 +196,11 @@
             {% for sessao in sessoes %}
             <li>
                 <strong>📅 {{ sessao.nome }}</strong> - <em>{{ sessao.status }}</em>
+                
+                {% if sessao.pauta_set.exists %}
+                    <p><strong>🗳️ Tipo de Votação:</strong> {{ sessao.pauta_set.first.tipo_votacao }}</p>
+                {% endif %}
+
                 {% if sessao.status == 'Arquivada' %}
                     <a href="{% url 'abrir_sessao' sessao.id %}" class="btn btn-success">🔓 Reabrir Sessão</a>
                     <a href="{% url 'gerar_relatorio' sessao.id %}" class="btn btn-primary">📄 Ver Relatório</a>
@@ -166,10 +212,12 @@
             {% endfor %}
         </ul>
 
-        <a href="{% url 'registrar_presenca' %}" class="btn btn-success">✅ Registrar Minha Presença</a>
         {% if sessao_ativa %}
             <a href="{% url 'ver_presencas' sessao_ativa.id %}" class="btn btn-warning">👀 Ver Presenças</a>
         {% endif %}
+
+        <!-- 🔹 Botão Presença agora acima do "Sessões Encerradas" -->
+        <a href="{% url 'registrar_presenca' %}" class="btn-presenca">✅ Registrar Presença</a>
 
         <!-- 🔹 Botão para acessar Sessões Encerradas -->
         <a href="{% url 'sessoes_encerradas' %}" class="btn btn-dark">📂 Sessões Encerradas</a>

@@ -16,29 +16,62 @@
         }
 
         .container {
-            max-width: 850px;
-            width: 95%;
+            max-width: 800px;
+            width: 100%;
             background: white;
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        h2, h3 {
+        .header {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .header h2 {
+            width: 100%;
             text-align: center;
-            color: #333;
-            margin-bottom: 15px;
+            margin: 10px 0 15px;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: #018528;
+            padding: 8px 10px;
+            font-size: 12px;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .back-btn:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
         }
 
         .pauta-card {
             background-color: white;
             padding: 15px;
             border-radius: 12px;
-            margin-bottom: 12px;
+            margin-bottom: 15px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
             border-left: 5px solid #007bff;
             transition: transform 0.2s;
-            position: relative;
+            width: 89%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
         }
 
         .pauta-card:hover {
@@ -48,18 +81,12 @@
         .status {
             font-size: 12px;
             font-weight: bold;
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 4px;
-            display: inline-block;
             text-align: center;
             margin-bottom: 5px;
+            display: inline-block;
         }
-
-        .status-aprovada { background-color: #28a745; color: white; }
-        .status-rejeitada { background-color: #dc3545; color: white; }
-        .status-em-votacao { background-color: #007bff; color: white; }
-        .status-em-espera { background-color: #ffc107; color: black; }
-        .status-encerrada { background-color: #6c757d; color: white; }
 
         .btn-group {
             display: flex;
@@ -70,19 +97,16 @@
         }
 
         .btn {
-            padding: 8px 12px;
-            font-size: 13px;
+            padding: 10px 15px;
+            font-size: 14px;
             font-weight: bold;
             text-transform: uppercase;
             text-decoration: none;
             border-radius: 6px;
             transition: all 0.3s ease;
             text-align: center;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border: none;
             cursor: pointer;
-            display: inline-block;
-            width: 48%;
+            border: none;
         }
 
         .btn:hover {
@@ -99,27 +123,6 @@
         .btn-warning { background: #ffca28; color: black; }
         .btn-warning:hover { background: #f1b400; }
 
-        .back-btn {
-            display: block;
-            margin-bottom: 15px;
-            background: #018528;
-            padding: 10px;
-            color: white;
-            border-radius: 6px;
-            text-decoration: none;
-            text-align: center;
-            font-weight: bold;
-            width: 100px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .back-btn:hover {
-            background: #5a6268;
-            transform: translateY(-2px);
-        }
-
-        /* 🔹 ESTILO DO MODAL */
         .modal {
             display: none;
             position: fixed;
@@ -132,6 +135,7 @@
             align-items: center;
             justify-content: center;
         }
+        
 
         .modal-content {
             background: white;
@@ -145,7 +149,8 @@
 
         .modal-buttons {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 10px;
             margin-top: 15px;
         }
 
@@ -162,30 +167,26 @@
 <body>
 
     <div class="container">
-        <a href="{% url 'painel_presidente' %}" class="back-btn">⬅️ Voltar</a>
-
-        <h2>📄 Pautas do Dia</h2>
+        <div class="header">
+            <a href="{% url 'painel_presidente' %}" class="back-btn">⬅️ Voltar</a>
+            <h2>📄 Pautas do Dia</h2>
+        </div>
 
         {% for pauta in pautas %}
         <div class="pauta-card">
-            {% if pauta.status == "Aprovada" %}
-                <div class="status status-aprovada">✅ Aprovada</div>
-            {% elif pauta.status == "Rejeitada" %}
-                <div class="status status-rejeitada">❌ Rejeitada</div>
-            {% elif pauta.status == "Em Votação" %}
-                <div class="status status-em-votacao">🟢 Em Votação</div>
-            {% elif pauta.status == "Em Espera" %}
-                <div class="status status-em-espera">⏳ Em Espera</div>
-            {% elif pauta.status == "Encerrada" %}
-                <div class="status status-encerrada">🔒 Encerrada</div>
-            {% endif %}
+            <div class="status-container">
+                <div class="status {{ pauta.status|lower|cut:" " }}">{{ pauta.status }}</div>
+            </div>
 
             <h3>📌 {{ pauta.titulo }}</h3>
             <p>{{ pauta.descricao }}</p>
 
             <div class="btn-group">
-                <button class="btn btn-primary" onclick="abrirModal({{ pauta.id }})">🗳️ Votar</button>
-                
+                <button class="btn btn-primary" onclick="abrirModal({{ pauta.id }})"
+                    {% if pauta.status in 'Em Votação,Aprovada,Rejeitada' %}disabled{% endif %}>
+                    🗳️ Votar
+                </button>
+
                 {% if pauta.arquivo_pdf %}
                     <a href="{{ pauta.arquivo_pdf.url }}" target="_blank" class="btn btn-warning">📄 Ver PDF</a>
                 {% endif %}
@@ -194,37 +195,52 @@
         {% endfor %}
     </div>
 
-    <!-- 🔹 MODAL PARA ESCOLHER VOTAÇÃO ABERTA OU FECHADA -->
     <div id="modalVotacao" class="modal">
         <div class="modal-content">
             <span class="close" onclick="fecharModal()">✖</span>
             <h3>Escolha o Tipo de Votação</h3>
             <div class="modal-buttons">
-                <button id="votacaoAberta" class="btn btn-primary">🔓 Aberta</button>
-                <button id="votacaoFechada" class="btn btn-danger">🔒 Fechada</button>
+                <button onclick="selecionarTipo('aberta')" class="btn btn-primary">🔓 Aberta</button>
+                <button onclick="selecionarTipo('fechada')" class="btn btn-danger">🔒 Fechada</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalModalidade" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="fecharModal()">✖</span>
+            <h3>Escolha a Modalidade da Votação</h3>
+            <div class="modal-buttons">
+                <button onclick="iniciarVotacao('simples')" class="btn btn-success">✅ Simples</button>
+                <button onclick="iniciarVotacao('absoluta')" class="btn btn-warning">🏛️ Absoluta</button>
+                <button onclick="iniciarVotacao('qualificada')" class="btn btn-danger">⚖️ Qualificada</button>
             </div>
         </div>
     </div>
 
     <script>
         let pautaIdSelecionada = null;
-    
+        let tipoVotacao = null;
+
         function abrirModal(pautaId) {
             pautaIdSelecionada = pautaId;
             document.getElementById("modalVotacao").style.display = "flex";
         }
-    
+
+        function selecionarTipo(tipo) {
+            tipoVotacao = tipo;
+            document.getElementById("modalVotacao").style.display = "none";
+            document.getElementById("modalModalidade").style.display = "flex";
+        }
+
+        function iniciarVotacao(modalidade) {
+            window.location.href = `/presidente/iniciar_votacao/${pautaIdSelecionada}/${tipoVotacao}/${modalidade}/`;
+        }
+
         function fecharModal() {
             document.getElementById("modalVotacao").style.display = "none";
+            document.getElementById("modalModalidade").style.display = "none";
         }
-    
-        document.getElementById("votacaoAberta").addEventListener("click", function () {
-            window.location.href = `/presidente/iniciar_votacao/${pautaIdSelecionada}/aberta/`;
-        });
-    
-        document.getElementById("votacaoFechada").addEventListener("click", function () {
-            window.location.href = `/presidente/iniciar_votacao/${pautaIdSelecionada}/fechada/`;
-        });
     </script>
 
 </body>
